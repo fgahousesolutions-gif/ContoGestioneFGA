@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rendiconto Sandu Francesco</title>
+  <style>
+    :root {
+      --ink: #17212b;
+      --muted: #647181;
+      --line: #d9e1e6;
+      --bg: #f5f7f8;
+      --panel: #fff;
+      --green: #146c4f;
+      --blue: #205f8f;
+      --red: #b42318;
+      --yellow: #996800;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: end;
+      padding: 22px clamp(16px, 4vw, 42px);
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+    }
+    h1 { margin: 0 0 8px; font-size: clamp(26px, 4vw, 40px); letter-spacing: 0; }
+    p { margin: 0; color: var(--muted); line-height: 1.45; }
+    main { padding: 20px clamp(16px, 4vw, 42px) 44px; }
+    .upload {
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 18px;
+      padding: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    input[type=file] {
+      width: 100%;
+      min-height: 54px;
+      padding: 13px;
+      border: 2px dashed var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 750;
+    }
+    input[type=file]::file-selector-button {
+      border: 0;
+      border-radius: 6px;
+      margin-right: 12px;
+      padding: 11px 16px;
+      background: var(--blue);
+      color: #fff;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button {
+      min-height: 44px;
+      border: 0;
+      border-radius: 6px;
+      padding: 10px 14px;
+      background: var(--blue);
+      color: #fff;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .55; cursor: wait; }
+    .ghost { background: #e9eef2; color: var(--ink); }
+    .status {
+      display: none;
+      margin-bottom: 18px;
+      padding: 12px 14px;
+      border: 1px solid #b8ddcc;
+      border-radius: 8px;
+      background: #edf7f2;
+      color: #185b43;
+      font-weight: 850;
+    }
+    .status.active { display: block; }
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .tab {
+      min-height: 58px;
+      text-align: left;
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    .tab.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+    .view { display: none; }
+    .view.active { display: block; }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .dashboard-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 18px;
+      align-items: start;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: minmax(220px, 360px) minmax(120px, 180px);
+      gap: 12px;
+      margin-bottom: 14px;
+      padding: 16px;
+      background: #f8fbfd;
+      border: 1px solid #b9cedc;
+      border-radius: 8px;
+      box-shadow: 0 1px 0 rgba(23, 33, 43, .05);
+    }
+    .field {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+    select {
+      width: 100%;
+      min-height: 46px;
+      padding: 9px 12px;
+      border: 2px solid #9db8c9;
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 850;
+      cursor: pointer;
+    }
+    select:focus {
+      outline: 3px solid rgba(32, 95, 143, .16);
+      border-color: var(--blue);
+    }
+    .kpi, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .kpi { padding: 14px; min-height: 96px; }
+    .kpi strong { display: block; font-size: clamp(22px, 3vw, 32px); line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .kpi span { color: var(--muted); font-size: 13px; font-weight: 780; }
+    .panel { margin-bottom: 18px; overflow: hidden; }
+    .side-panel {
+      position: sticky;
+      top: 16px;
+    }
+    .period-card {
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .period-card:last-child { border-bottom: 0; }
+    .period-card h3 {
+      margin: 0 0 10px;
+      font-size: 16px;
+    }
+    .date-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      width: fit-content;
+      padding: 5px 9px;
+      border-radius: 999px;
+      border: 1px solid #d7b75f;
+      background: #fff5d6;
+      color: #5d4300;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .period-grid {
+      display: grid;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 780;
+    }
+    .period-grid div {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .period-grid strong {
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+    .expense-groups {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 18px;
+    }
+    .summary-kpis {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      padding: 14px;
+    }
+    .summary-kpis .kpi {
+      margin: 0;
+    }
+    .group-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    h2 { margin: 0; font-size: 18px; letter-spacing: 0; }
+    .panel-head span { color: var(--muted); font-size: 13px; font-weight: 750; }
+    .table-wrap { overflow: auto; }
+    table { width: 100%; min-width: 860px; border-collapse: collapse; }
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    th {
+      background: #f9fbfc;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    td.money, th.money { text-align: right; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #e9f2f7;
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 850;
+    }
+    .pill.booking { background: #eef0ff; color: #3f4aa2; }
+    .pill.airbnb { background: #fff0f0; color: #a63b3b; }
+    .pill.dirette { background: #e8f6ef; color: var(--green); }
+    .settlement {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .settlement .kpi { min-height: 122px; }
+    .delta-box {
+      padding: 18px;
+      margin-bottom: 18px;
+      border-radius: 8px;
+      border: 2px solid var(--line);
+      background: #fff;
+    }
+    .delta-box > span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-weight: 900;
+    }
+    .delta-box strong {
+      display: block;
+      margin-top: 6px;
+      font-size: clamp(30px, 5vw, 48px);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .settlement-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      padding: 14px;
+    }
+    .settlement-list {
+      display: grid;
+      gap: 8px;
+      padding: 14px 16px;
+      border-top: 1px solid var(--line);
+    }
+    .settlement-list div {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-weight: 800;
+    }
+    .settlement-list strong {
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+    .positive strong { color: var(--green); }
+    .negative strong { color: var(--red); }
+    .warnings {
+      display: none;
+      margin-bottom: 18px;
+      padding: 14px 16px;
+      border: 1px solid #ead28f;
+      border-radius: 8px;
+      background: #fff8e5;
+      color: #6f4b00;
+      font-weight: 760;
+    }
+    .warnings.active { display: block; }
+    .empty {
+      padding: 28px;
+      color: var(--muted);
+      font-weight: 760;
+    }
+    @media (max-width: 920px) {
+      header, .upload { grid-template-columns: 1fr; }
+      .tabs, .kpis, .settlement { grid-template-columns: 1fr; }
+      .settlement-grid, .summary-kpis { grid-template-columns: 1fr; }
+      .dashboard-layout { grid-template-columns: 1fr; }
+      .side-panel { position: static; }
+      header button, .upload button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Rendiconto Sandu Francesco</h1>
+      <p>Appartamenti ID003, ID004, ID005 e ID006 con utile, spese condivise e dare/avere.</p>
+    </div>
+    <button class="ghost" id="refreshBtn">Aggiorna</button>
+  </header>
+
+  <main>
+    <form class="upload" id="uploadForm">
+      <input id="fileInput" type="file" accept=".xlsx">
+      <button id="uploadBtn" type="submit">Carica Excel</button>
+    </form>
+
+    <div class="status" id="statusBox"></div>
+    <div class="warnings" id="warningsBox"></div>
+
+    <nav class="tabs">
+      <button class="tab active" data-view="dashboard" type="button">Rendimento</button>
+      <button class="tab" data-view="expenses" type="button">Spese</button>
+      <button class="tab" data-view="settlement" type="button">Rendiconto</button>
+    </nav>
+
+    <section class="view active" id="dashboard"></section>
+    <section class="view" id="expenses"></section>
+    <section class="view" id="settlement"></section>
+  </main>
+
+  <script>
+    const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" });
+    const integerFmt = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0, useGrouping: "always" });
+    const dateTime = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium", timeStyle: "short" });
+    let state = null;
+    let selectedApartment = "all";
+    let selectedYear = String(new Date().getFullYear());
+
+    const $ = (id) => document.getElementById(id);
+    const fmt = (value) => euro.format(Number(value || 0));
+    const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;" }[ch]));
+    const channelClass = (value) => String(value || "").toLowerCase().replace(/[^a-z]/g, "") || "other";
+
+    function uploadedLabel(value) {
+      if (!value) return "Nessun file caricato";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return dateTime.format(date);
+    }
+
+    function sum(rows, key) {
+      return rows.reduce((total, row) => total + Number(row[key] || 0), 0);
+    }
+
+    function parseDate(value) {
+      if (!value) return null;
+      const date = new Date(`${value}T00:00:00`);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function apartmentOptions() {
+      const apartments = state?.apartments || [];
+      return [`<option value="all">Tutti gli appartamenti</option>`].concat(apartments.map((apt) => `
+        <option value="${esc(apt.id)}" ${selectedApartment === apt.id ? "selected" : ""}>${esc(apt.label || apt.id)}</option>
+      `)).join("");
+    }
+
+    function availableYears() {
+      const years = new Set();
+      (state?.bookings || []).forEach((row) => {
+        const checkIn = parseDate(row.checkIn);
+        if (checkIn) years.add(checkIn.getFullYear());
+      });
+      years.add(new Date().getFullYear());
+      return [...years].sort((a, b) => b - a);
+    }
+
+    function yearOptions() {
+      const years = availableYears();
+      if (!years.includes(Number(selectedYear))) {
+        selectedYear = String(years[0] || new Date().getFullYear());
+      }
+      return years.map((year) => `
+        <option value="${year}" ${String(year) === selectedYear ? "selected" : ""}>${year}</option>
+      `).join("");
+    }
+
+    function filteredBookings() {
+      const rows = state?.bookings || [];
+      return rows.filter((row) => {
+        const checkIn = parseDate(row.checkIn);
+        if (!checkIn || String(checkIn.getFullYear()) !== selectedYear) return false;
+        if (selectedApartment === "all") return true;
+        return row.sheet === selectedApartment;
+      });
+    }
+
+    function apartmentFilteredBookings() {
+      const rows = state?.bookings || [];
+      if (selectedApartment === "all") return rows;
+      return rows.filter((row) => row.sheet === selectedApartment);
+    }
+
+    function aggregateByChannel(bookings) {
+      return bookings.reduce((acc, row) => {
+        const bucket = acc[row.channel] ||= { gross: 0, netOwner: 0, cleaning: 0, francesco: 0, sandu: 0, sanduDueByFrancesco: 0, count: 0 };
+        bucket.count += 1;
+        ["gross", "netOwner", "cleaning", "francesco", "sandu", "sanduDueByFrancesco"].forEach((key) => {
+          bucket[key] += Number(row[key] || 0);
+        });
+        return acc;
+      }, {});
+    }
+
+    function periodRows(bookings, year) {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const selected = Number(year);
+      const previousYear = selected - 1;
+      const progressiveEnd = selected === currentYear
+          ? new Date(selected, now.getMonth(), 0)
+          : selected < currentYear
+            ? new Date(selected, 11, 31)
+          : new Date(selected, 0, 0);
+      const futureStart = new Date(progressiveEnd);
+      futureStart.setDate(futureStart.getDate() + 1);
+      const byPeriod = { previous: [], progressive: [], future: [] };
+      bookings.forEach((row) => {
+        const checkIn = parseDate(row.checkIn);
+        if (!checkIn) return;
+        if (checkIn.getFullYear() === previousYear) byPeriod.previous.push(row);
+        if (checkIn.getFullYear() === selected && checkIn <= progressiveEnd) byPeriod.progressive.push(row);
+        if (checkIn.getFullYear() === selected && checkIn >= futureStart) byPeriod.future.push(row);
+      });
+      return { byPeriod, currentYear: selected, previousYear, progressiveEnd, futureStart };
+    }
+
+    function periodCard(title, subtitle, rows) {
+      return `
+        <div class="period-card">
+          <h3>${esc(title)}</h3>
+          <span class="date-badge">${esc(subtitle)}</span>
+          <div class="period-grid">
+            <div><span>Prenotazioni</span><strong>${integerFmt.format(rows.length)}</strong></div>
+            <div><span>Lordo</span><strong>${fmt(sum(rows, "gross"))}</strong></div>
+            <div><span>Netto proprieta</span><strong>${fmt(sum(rows, "netOwner"))}</strong></div>
+            <div><span>Quota Sandu</span><strong>${fmt(sum(rows, "sandu"))}</strong></div>
+            <div><span>Da girare</span><strong>${fmt(sum(rows, "sanduDueByFrancesco"))}</strong></div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderPeriodBox(bookings, year) {
+      const periods = periodRows(bookings, year);
+      const endLabel = new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" }).format(periods.progressiveEnd);
+      const startLabel = new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" }).format(periods.futureStart);
+      return `
+        <aside class="panel side-panel">
+          <div class="panel-head"><h2>Periodi</h2><span>Check-in</span></div>
+          ${periodCard(`Anno precedente ${periods.previousYear}`, "Totale anno", periods.byPeriod.previous)}
+          ${periodCard(`Progressivo ${periods.currentYear}`, `Fino al ${endLabel}`, periods.byPeriod.progressive)}
+          ${periodCard("Futuro", `Dal ${startLabel}`, periods.byPeriod.future)}
+        </aside>
+      `;
+    }
+
+    function renderStatus() {
+      const box = $("statusBox");
+      if (!state) {
+        box.classList.remove("active");
+        box.textContent = "";
+        return;
+      }
+      box.classList.add("active");
+      box.textContent = `Ultimo aggiornamento: ${uploadedLabel(state.uploadedAt)} - File: ${state.filename || ""}`;
+
+      const warnings = $("warningsBox");
+      if (state.warnings && state.warnings.length) {
+        warnings.classList.add("active");
+        warnings.innerHTML = state.warnings.map(esc).join("<br>");
+      } else {
+        warnings.classList.remove("active");
+        warnings.textContent = "";
+      }
+    }
+
+    function renderKpis(bookings) {
+      return `
+        <div class="kpis">
+          <div class="kpi"><strong>${fmt(sum(bookings, "gross"))}</strong><span>Incasso lordo</span></div>
+          <div class="kpi"><strong>${fmt(sum(bookings, "netOwner"))}</strong><span>Netto proprieta dopo pulizie</span></div>
+          <div class="kpi"><strong>${fmt(sum(bookings, "francesco"))}</strong><span>Quota Francesco</span></div>
+          <div class="kpi"><strong>${fmt(sum(bookings, "sandu"))}</strong><span>Quota Sandu maturata</span></div>
+        </div>
+      `;
+    }
+
+    function channelRows(channels) {
+      return Object.entries(channels || {}).sort(([a], [b]) => a.localeCompare(b)).map(([name, row]) => `
+        <tr>
+          <td><span class="pill ${channelClass(name)}">${esc(name)}</span></td>
+          <td>${integerFmt.format(row.count || 0)}</td>
+          <td class="money">${fmt(row.gross)}</td>
+          <td class="money">${fmt(row.cleaning)}</td>
+          <td class="money">${fmt(row.netOwner)}</td>
+          <td class="money">${fmt(row.francesco)}</td>
+          <td class="money">${fmt(row.sandu)}</td>
+          <td class="money">${fmt(row.sanduDueByFrancesco)}</td>
+        </tr>
+      `).join("");
+    }
+
+    function bookingRows(bookings) {
+      return bookings.map((row) => `
+        <tr>
+          <td>${esc(row.apartmentLabel || row.sheet)}</td>
+          <td>${esc(row.checkIn)}</td>
+          <td>${esc(row.checkOut)}</td>
+          <td><span class="pill ${channelClass(row.channel)}">${esc(row.channel)}</span></td>
+          <td class="money">${fmt(row.gross)}</td>
+          <td class="money">${fmt(row.cleaning)}</td>
+          <td class="money">${fmt(row.netOwner)}</td>
+          <td class="money">${fmt(row.francesco)}</td>
+          <td class="money">${fmt(row.sandu)}</td>
+          <td class="money">${fmt(row.sanduDueByFrancesco)}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderDashboard() {
+      const bookings = filteredBookings();
+      const periodSource = apartmentFilteredBookings();
+      const channels = aggregateByChannel(bookings);
+      $("dashboard").innerHTML = !state ? `<div class="panel"><div class="empty">Carica il file Excel per iniziare.</div></div>` : `
+        <div class="controls">
+          <label class="field">
+            Appartamento
+            <select id="apartmentSelect">${apartmentOptions()}</select>
+          </label>
+          <label class="field">
+            Anno
+            <select id="yearSelect">${yearOptions()}</select>
+          </label>
+        </div>
+        <div class="dashboard-layout">
+          <div>
+            ${renderKpis(bookings)}
+            <div class="panel">
+              <div class="panel-head"><h2>Rendimento per canale</h2><span>Booking, Airbnb, dirette</span></div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Canale</th><th>Prenotazioni</th><th class="money">Lordo</th><th class="money">Pulizie</th><th class="money">Netto proprieta</th><th class="money">Francesco</th><th class="money">Sandu</th><th class="money">Da girare a Sandu</th></tr></thead>
+                  <tbody>${channelRows(channels)}</tbody>
+                </table>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h2>Prenotazioni lette</h2><span>${integerFmt.format(bookings.length)} righe</span></div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Appartamento</th><th>In</th><th>Out</th><th>Canale</th><th class="money">Lordo</th><th class="money">Pulizie</th><th class="money">Netto</th><th class="money">Francesco</th><th class="money">Sandu</th><th class="money">Da girare</th></tr></thead>
+                  <tbody>${bookingRows(bookings)}</tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          ${renderPeriodBox(periodSource, selectedYear)}
+        </div>
+      `;
+      const select = $("apartmentSelect");
+      if (select) {
+        select.addEventListener("change", () => {
+          selectedApartment = select.value;
+          renderDashboard();
+        });
+      }
+      const yearSelect = $("yearSelect");
+      if (yearSelect) {
+        yearSelect.addEventListener("change", () => {
+          selectedYear = yearSelect.value;
+          renderDashboard();
+        });
+      }
+    }
+
+    function expenseRows(items) {
+      return (items || []).map((row) => `
+        <tr>
+          <td>${esc(row.category)}</td>
+          <td>${esc(row.description)}</td>
+          <td class="money">${fmt(row.total)}</td>
+          <td class="money">${fmt(row.share)}</td>
+          <td>${esc(row.note)}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderExpenseSummary(expenses) {
+      const buckets = {
+        appartamenti: { label: "Appartamenti", total: 0, share: 0, count: 0 },
+        ads: { label: "ADS", total: 0, share: 0, count: 0 },
+        varie: { label: "Varie", total: 0, share: 0, count: 0 },
+      };
+      (expenses?.groups || []).forEach((group) => {
+        (group.items || []).forEach((item) => {
+          const category = String(item.category || "").trim().toLowerCase();
+          const bucket = category === "varie"
+            ? buckets.varie
+            : group.kind === "ADS"
+              ? buckets.ads
+              : buckets.appartamenti;
+          bucket.total += Number(item.total || 0);
+          bucket.share += Number(item.share || 0);
+          bucket.count += 1;
+        });
+      });
+      return `
+        <div class="panel">
+          <div class="panel-head"><h2>Totale generale spese</h2><span>Tutti gli anni</span></div>
+          <div class="summary-kpis">
+            ${Object.values(buckets).map((bucket) => `
+              <div class="kpi">
+                <strong>${fmt(bucket.share)}</strong>
+                <span>${esc(bucket.label)} - quota parte</span>
+                <p>${fmt(bucket.total)} totali - ${integerFmt.format(bucket.count)} voci</p>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderExpenses() {
+      const expenses = state?.expenses;
+      const groups = (expenses?.groups || []).filter((group) => String(group.year) === selectedYear);
+      const apartmentGroups = groups.filter((group) => group.kind !== "ADS");
+      const adsGroups = groups.filter((group) => group.kind === "ADS");
+      const items = groups.flatMap((group) => group.items || []);
+      const groupPanel = (group) => `
+        <div class="panel">
+          <div class="panel-head">
+            <div class="group-title">
+              <h2>${esc(group.name)}</h2>
+              <span class="pill ${group.kind === "ADS" ? "booking" : "dirette"}">${esc(group.kind === "ADS" ? "ADS" : "Appartamento")}</span>
+            </div>
+            <span>${integerFmt.format((group.items || []).length)} voci</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Cosa</th><th>Tipo</th><th class="money">Spesa totale</th><th class="money">Quota parte</th><th>Note</th></tr></thead>
+              <tbody>${expenseRows(group.items)}</tbody>
+              <tfoot><tr><th colspan="2">Totale</th><th class="money">${fmt(group.total)}</th><th class="money">${fmt(group.share)}</th><th></th></tr></tfoot>
+            </table>
+          </div>
+        </div>
+      `;
+      $("expenses").innerHTML = !state ? `<div class="panel"><div class="empty">Carica il file Excel per vedere le spese.</div></div>` : `
+        ${renderExpenseSummary(expenses)}
+        <div class="controls">
+          <label class="field">
+            Anno
+            <select id="expenseYearSelect">${yearOptions()}</select>
+          </label>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><strong>${fmt(sum(items, "total"))}</strong><span>Spese totali rilevate</span></div>
+          <div class="kpi"><strong>${fmt(sum(items, "share"))}</strong><span>Quota parte</span></div>
+          <div class="kpi"><strong>${integerFmt.format(apartmentGroups.length)}</strong><span>Gruppi appartamenti</span></div>
+          <div class="kpi"><strong>${integerFmt.format(adsGroups.length)}</strong><span>Gruppi ADS</span></div>
+        </div>
+        <div class="expense-groups">
+          <div class="panel">
+            <div class="panel-head"><h2>Spese appartamenti</h2><span>${selectedYear}</span></div>
+            ${apartmentGroups.length ? "" : `<div class="empty">Nessuna spesa appartamenti per questo anno.</div>`}
+          </div>
+          ${apartmentGroups.map(groupPanel).join("")}
+          <div class="panel">
+            <div class="panel-head"><h2>ADS</h2><span>${selectedYear}</span></div>
+            ${adsGroups.length ? "" : `<div class="empty">Nessuna spesa ADS per questo anno.</div>`}
+          </div>
+          ${adsGroups.map(groupPanel).join("")}
+        </div>
+      `;
+      const expenseYearSelect = $("expenseYearSelect");
+      if (expenseYearSelect) {
+        expenseYearSelect.addEventListener("change", () => {
+          selectedYear = expenseYearSelect.value;
+          renderDashboard();
+          renderExpenses();
+        });
+      }
+    }
+
+    function settlementRows(groups) {
+      const entries = Object.entries(groups || {}).sort(([a], [b]) => a.localeCompare(b));
+      if (!entries.length) return `<div><span>Nessuna voce</span><strong>${fmt(0)}</strong></div>`;
+      return entries.map(([name, value]) => `
+        <div><span>${esc(name)}</span><strong>${fmt(value)}</strong></div>
+      `).join("");
+    }
+
+    function renderYearSettlement(year) {
+      const delta = Number(year.delta || 0);
+      return `
+        <div class="panel">
+          <div class="panel-head">
+            <h2>${esc(year.year)}</h2>
+            <span>${delta >= 0 ? "Francesco paga Sandu" : "Sandu paga Francesco"} ${fmt(Math.abs(delta))}</span>
+          </div>
+          <div class="settlement-grid">
+            <div class="kpi positive"><strong>${fmt(year.francescoToSanduTotal)}</strong><span>Francesco deve a Sandu</span></div>
+            <div class="kpi negative"><strong>${fmt(year.sanduToFrancescoTotal)}</strong><span>Sandu deve a Francesco</span></div>
+          </div>
+          <div class="settlement-list">
+            <h2>Francesco -> Sandu</h2>
+            ${settlementRows(year.francescoToSandu)}
+          </div>
+          <div class="settlement-list">
+            <h2>Sandu -> Francesco</h2>
+            ${settlementRows(year.sanduToFrancesco)}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSettlement() {
+      const s = state?.settlement || {};
+      const overall = s.overall || {};
+      const projection = s.projection || { overall: {}, years: [] };
+      const net = Number(overall.delta || 0);
+      const futureNet = Number(projection.overall?.delta || 0);
+      const cutoffLabel = s.cutoffDate ? new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${s.cutoffDate}T00:00:00`)) : "";
+      $("settlement").innerHTML = !state ? `<div class="panel"><div class="empty">Carica il file Excel per calcolare il rendiconto.</div></div>` : `
+        <div class="delta-box ${net >= 0 ? "positive" : "negative"}">
+          <span>Delta da saldare ${cutoffLabel ? `<span class="date-badge">Stop ${cutoffLabel}</span>` : ""}</span>
+          <strong>${fmt(Math.abs(net))}</strong>
+          <p>${net >= 0 ? "Francesco deve pagare Sandu" : "Sandu deve pagare Francesco"}</p>
+        </div>
+        <div class="settlement">
+          <div class="kpi positive"><strong>${fmt(overall.francescoToSandu)}</strong><span>Totale Francesco deve a Sandu</span></div>
+          <div class="kpi negative"><strong>${fmt(overall.sanduToFrancesco)}</strong><span>Totale Sandu deve a Francesco</span></div>
+        </div>
+        ${(s.years || []).map(renderYearSettlement).join("")}
+        <div class="delta-box ${futureNet >= 0 ? "positive" : "negative"}">
+          <span>Proiezione futura ${cutoffLabel ? `<span class="date-badge">Dopo ${cutoffLabel}</span>` : ""}</span>
+          <strong>${fmt(Math.abs(futureNet))}</strong>
+          <p>${projection.note || "Valori stimati su prenotazioni future."}</p>
+        </div>
+        ${(projection.years || []).map(renderYearSettlement).join("")}
+      `;
+    }
+
+    function renderAll() {
+      renderStatus();
+      renderDashboard();
+      renderExpenses();
+      renderSettlement();
+    }
+
+    async function loadCurrent() {
+      const res = await fetch("/api/current");
+      const data = await res.json();
+      state = data.state;
+      renderAll();
+    }
+
+    async function uploadFile(file) {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ filename: file.name, contentBase64: btoa(binary) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Caricamento non riuscito");
+      state = data;
+      renderAll();
+    }
+
+    document.querySelectorAll(".tab").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab === button));
+        document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === button.dataset.view));
+      });
+    });
+
+    $("uploadForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const file = $("fileInput").files[0];
+      if (!file) return;
+      $("uploadBtn").disabled = true;
+      $("uploadBtn").textContent = "Carico...";
+      try {
+        await uploadFile(file);
+      } catch (error) {
+        alert(error.message);
+      } finally {
+        $("uploadBtn").disabled = false;
+        $("uploadBtn").textContent = "Carica Excel";
+      }
+    });
+
+    $("refreshBtn").addEventListener("click", loadCurrent);
+    loadCurrent();
+  </script>
+</body>
+</html>
