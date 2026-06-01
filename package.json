@@ -1,0 +1,12 @@
+{
+  "name": "rendiconto-sandu-francesco",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo \"No build step\""
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  }
+}

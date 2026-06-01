@@ -8,11 +8,23 @@ Questa non e una pagina statica: l'upload Excel funziona solo se gira anche `ser
 
 GitHub Pages da solo non basta, perche non esegue Python e non puo salvare `data/current_state.json`.
 
-Per pubblicarla online:
+Per pubblicarla online su Cloudflare Pages:
 
 1. Carica questa cartella su GitHub.
-2. Collega la repo a Render come Web Service.
-3. Usa `python3 server.py` come start command, oppure importa il file `render.yaml`.
+2. Collega la repo a Cloudflare Pages.
+3. Framework preset: `None`.
+4. Build command: `npm install`.
+5. Build output directory: `public`.
+6. Crea un KV namespace e collegalo al progetto Pages con binding `APP_STATE`.
+
+Le API Cloudflare sono in:
+
+```text
+functions/api/current.js
+functions/api/upload.js
+```
+
+La versione locale con Python resta disponibile usando `server.py`.
 
 ## Avvio
 
