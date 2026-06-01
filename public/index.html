@@ -805,23 +805,47 @@
     }
 
     async function loadCurrent() {
-      const res = await fetch("/api/current");
-      const data = await res.json();
-      state = data.state;
-      renderAll();
+      try {
+        const res = await fetch("/api/current");
+        if (!res.ok) throw new Error("Backend non disponibile");
+        const data = await res.json();
+        state = data.state;
+        renderAll();
+      } catch (error) {
+        state = null;
+        renderAll();
+        const box = $("warningsBox");
+        box.classList.add("active");
+        box.textContent = "Backend non disponibile: avvia server.py oppure pubblica la repo su un servizio Python. GitHub Pages da solo non puo salvare o leggere l'Excel.";
+      }
+    }
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = String(reader.result || "");
+          const comma = result.indexOf(",");
+          resolve(comma >= 0 ? result.slice(comma + 1) : result);
+        };
+        reader.onerror = () => reject(reader.error || new Error("Lettura file non riuscita"));
+        reader.readAsDataURL(file);
+      });
     }
 
     async function uploadFile(file) {
-      const buffer = await file.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      let binary = "";
-      for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+      const contentBase64 = await fileToBase64(file);
       const res = await fetch("/api/upload", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ filename: file.name, contentBase64: btoa(binary) }),
+        body: JSON.stringify({ filename: file.name, contentBase64 }),
       });
-      const data = await res.json();
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (error) {
+        throw new Error("Backend non disponibile: questa pagina deve girare con server.py, non solo come sito statico GitHub.");
+      }
       if (!res.ok) throw new Error(data.error || "Caricamento non riuscito");
       state = data;
       renderAll();

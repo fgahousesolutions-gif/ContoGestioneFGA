@@ -2,6 +2,18 @@
 
 Webapp locale per caricare il file Excel degli appartamenti e mantenere salvato l'ultimo aggiornamento.
 
+## Importante per GitHub
+
+Questa non e una pagina statica: l'upload Excel funziona solo se gira anche `server.py`.
+
+GitHub Pages da solo non basta, perche non esegue Python e non puo salvare `data/current_state.json`.
+
+Per pubblicarla online:
+
+1. Carica questa cartella su GitHub.
+2. Collega la repo a Render come Web Service.
+3. Usa `python3 server.py` come start command, oppure importa il file `render.yaml`.
+
 ## Avvio
 
 ```bash

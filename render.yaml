@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: rendiconto-sandu-francesco
+    env: python
+    plan: free
+    buildCommand: ""
+    startCommand: python3 server.py
