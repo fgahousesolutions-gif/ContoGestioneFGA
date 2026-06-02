@@ -1,3 +1,6 @@
 name = "conto-gestione-fga"
 compatibility_date = "2026-06-02"
 pages_build_output_dir = "public"
+[[kv_namespaces]]
+binding = "APP_STATE"
+id = "fbd6bf9fbf65492e8d8ed1de70be10c0"
