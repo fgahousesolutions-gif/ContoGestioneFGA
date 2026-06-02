@@ -291,6 +291,23 @@ function finalizeYears(years) {
   return { overall, list: Object.values(years).sort((a, b) => b.year - a.year) };
 }
 
+function addPersonalBucket(years, year, person, group, amount) {
+  const key = String(year);
+  const entry = years[key] ||= { year, francesco: {}, sandu: {}, francescoTotal: 0, sanduTotal: 0 };
+  const totalKey = person === "francesco" ? "francescoTotal" : "sanduTotal";
+  entry[person][group] = (entry[person][group] || 0) + amount;
+  entry[totalKey] += amount;
+}
+
+function finalizePersonalYears(years) {
+  const overall = { francesco: 0, sandu: 0 };
+  Object.values(years).forEach((entry) => {
+    overall.francesco += entry.francescoTotal;
+    overall.sandu += entry.sanduTotal;
+  });
+  return { overall, list: Object.values(years).sort((a, b) => b.year - a.year) };
+}
+
 export function parseWorkbook(bytes, filename) {
   const workbook = XLSX.read(bytes, { type: "array", cellDates: true });
   const warnings = [];
@@ -321,21 +338,30 @@ export function parseWorkbook(bytes, filename) {
   const cutoff = previousMonthEnd();
   const settled = {};
   const projected = {};
+  const personalSettled = {};
+  const personalProjected = {};
   bookings.forEach((booking) => {
     const date = parseDate(booking.checkIn);
     const amount = money(booking.sanduDueByFrancesco);
-    if (!date || !amount) return;
-    addBucket(date <= cutoff ? settled : projected, date.getUTCFullYear(), "francesco_to_sandu", "Utili appartamenti", amount);
+    if (!date) return;
+    if (amount) addBucket(date <= cutoff ? settled : projected, date.getUTCFullYear(), "francesco_to_sandu", "Utili appartamenti", amount);
+    const personalTarget = date <= cutoff ? personalSettled : personalProjected;
+    addPersonalBucket(personalTarget, date.getUTCFullYear(), "francesco", "Quote prenotazioni", money(booking.francesco));
+    addPersonalBucket(personalTarget, date.getUTCFullYear(), "sandu", "Quote prenotazioni", money(booking.sandu));
   });
   dueToSanduBlocks.forEach((block) => block.items.forEach((item) => addBucket(settled, item.year, "francesco_to_sandu", item.category || "Sanremo", item.amount)));
   expenses.items.forEach((item) => {
     const group = norm(item.category) === "varie" ? "Varie" : item.kind === "ADS" ? "ADS" : "Spese appartamenti";
     addBucket(settled, item.year, "sandu_to_francesco", group, money(item.share));
+    addPersonalBucket(personalSettled, item.year, "francesco", group, -money(item.share));
+    addPersonalBucket(personalSettled, item.year, "sandu", group, -money(item.share));
   });
   dueToFrancescoBlocks.forEach((block) => block.items.forEach((item) => addBucket(settled, item.year, "sandu_to_francesco", "Tassa soggiorno Sanremo", item.amount)));
   payments.forEach((payment) => addBucket(settled, payment.year, payment.side, "Pagamenti avvenuti", -payment.amount));
   const settlementFinal = finalizeYears(settled);
   const projectionFinal = finalizeYears(projected);
+  const personalFinal = finalizePersonalYears(personalSettled);
+  const personalProjectionFinal = finalizePersonalYears(personalProjected);
 
   return {
     filename,
@@ -352,6 +378,15 @@ export function parseWorkbook(bytes, filename) {
         overall: projectionFinal.overall,
         years: projectionFinal.list,
         note: "Proiezione su prenotazioni future: valori da confermare quando i soggiorni saranno conclusi o modificati.",
+      },
+      personalProgress: {
+        overall: personalFinal.overall,
+        years: personalFinal.list,
+        projection: {
+          overall: personalProjectionFinal.overall,
+          years: personalProjectionFinal.list,
+          note: "Proiezione personale sulle prenotazioni future, senza spese non ancora inserite.",
+        },
       },
       payments,
       dueToSanduBlocks,

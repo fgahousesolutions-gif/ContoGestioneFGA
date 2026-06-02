@@ -591,6 +591,31 @@ def add_settlement_bucket(years, year, side, group, amount):
     entry[total_key] += amount
 
 
+def add_personal_bucket(years, year, person, group, amount):
+    year_key = str(year)
+    entry = years.setdefault(year_key, {
+        "year": year,
+        "francesco": {},
+        "sandu": {},
+        "francescoTotal": 0,
+        "sanduTotal": 0,
+    })
+    total_key = "francescoTotal" if person == "francesco" else "sanduTotal"
+    entry[person][group] = entry[person].get(group, 0) + amount
+    entry[total_key] += amount
+
+
+def finalize_personal_years(years):
+    overall = {"francesco": 0, "sandu": 0}
+    for entry in years.values():
+        overall["francesco"] += entry["francescoTotal"]
+        overall["sandu"] += entry["sanduTotal"]
+    return {
+        "overall": overall,
+        "years": [years[key] for key in sorted(years.keys(), reverse=True)],
+    }
+
+
 def parse_workbook(raw, filename):
     reader = XlsxReader(raw)
     apartments = []
@@ -626,18 +651,26 @@ def parse_workbook(raw, filename):
     cutoff_date = previous_month_end()
     settlement_years = {}
     projection_years = {}
+    personal_years = {}
+    personal_projection_years = {}
     for booking in all_bookings:
         check_in = parse_iso_date(booking.get("checkIn"))
         amount = money(booking.get("sanduDueByFrancesco"))
-        if check_in and amount:
-            target = settlement_years if check_in <= cutoff_date else projection_years
-            add_settlement_bucket(target, check_in.year, "francesco_to_sandu", "Utili appartamenti", amount)
+        if check_in:
+            if amount:
+                target = settlement_years if check_in <= cutoff_date else projection_years
+                add_settlement_bucket(target, check_in.year, "francesco_to_sandu", "Utili appartamenti", amount)
+            personal_target = personal_years if check_in <= cutoff_date else personal_projection_years
+            add_personal_bucket(personal_target, check_in.year, "francesco", "Quote prenotazioni", money(booking.get("francesco")))
+            add_personal_bucket(personal_target, check_in.year, "sandu", "Quote prenotazioni", money(booking.get("sandu")))
     for block in due_to_sandu_blocks:
         for item in block["items"]:
             add_settlement_bucket(settlement_years, item["year"], "francesco_to_sandu", item["category"] or "Sanremo", item["amount"])
     for item in expenses["items"]:
         group = "Varie" if norm(item.get("category")) == "varie" else ("ADS" if item.get("kind") == "ADS" else "Spese appartamenti")
         add_settlement_bucket(settlement_years, item["year"], "sandu_to_francesco", group, money(item.get("share")))
+        add_personal_bucket(personal_years, item["year"], "francesco", group, -money(item.get("share")))
+        add_personal_bucket(personal_years, item["year"], "sandu", group, -money(item.get("share")))
     for block in due_to_francesco_blocks:
         for item in block["items"]:
             add_settlement_bucket(settlement_years, item["year"], "sandu_to_francesco", "Tassa soggiorno Sanremo", item["amount"])
@@ -666,6 +699,8 @@ def parse_workbook(raw, filename):
         projection_overall["francescoToSandu"] += entry["francescoToSanduTotal"]
         projection_overall["sanduToFrancesco"] += entry["sanduToFrancescoTotal"]
     projection_overall["delta"] = projection_overall["francescoToSandu"] - projection_overall["sanduToFrancesco"]
+    personal_final = finalize_personal_years(personal_years)
+    personal_projection_final = finalize_personal_years(personal_projection_years)
 
     settlement = {
         "overall": overall,
@@ -675,6 +710,15 @@ def parse_workbook(raw, filename):
             "overall": projection_overall,
             "years": [projection_years[key] for key in sorted(projection_years.keys(), reverse=True)],
             "note": "Proiezione su prenotazioni future: valori da confermare quando i soggiorni saranno conclusi o modificati.",
+        },
+        "personalProgress": {
+            "overall": personal_final["overall"],
+            "years": personal_final["years"],
+            "projection": {
+                "overall": personal_projection_final["overall"],
+                "years": personal_projection_final["years"],
+                "note": "Proiezione personale sulle prenotazioni future, senza spese non ancora inserite.",
+            },
         },
         "payments": payments,
         "dueToSanduBlocks": due_to_sandu_blocks,

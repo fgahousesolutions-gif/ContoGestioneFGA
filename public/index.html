@@ -317,6 +317,21 @@
       color: var(--ink);
       font-variant-numeric: tabular-nums;
     }
+    .personal-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .personal-detail {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .personal-detail h3 {
+      margin: 0 0 10px;
+      font-size: 14px;
+    }
     .positive strong { color: var(--green); }
     .negative strong { color: var(--red); }
     .warnings {
@@ -338,7 +353,7 @@
     @media (max-width: 920px) {
       header, .upload { grid-template-columns: 1fr; }
       .tabs, .kpis, .settlement { grid-template-columns: 1fr; }
-      .settlement-grid, .summary-kpis { grid-template-columns: 1fr; }
+      .settlement-grid, .summary-kpis, .personal-grid, .personal-detail { grid-template-columns: 1fr; }
       .dashboard-layout { grid-template-columns: 1fr; }
       .side-panel { position: static; }
       header button, .upload button { width: 100%; }
@@ -755,6 +770,66 @@
       `).join("");
     }
 
+    function personalRows(groups) {
+      const entries = Object.entries(groups || {}).sort(([a], [b]) => a.localeCompare(b));
+      if (!entries.length) return `<div><span>Nessuna voce</span><strong>${fmt(0)}</strong></div>`;
+      return entries.map(([name, value]) => `
+        <div><span>${esc(name)}</span><strong>${fmt(value)}</strong></div>
+      `).join("");
+    }
+
+    function renderPersonalYear(year) {
+      return `
+        <div class="panel">
+          <div class="panel-head">
+            <h2>${esc(year.year)}</h2>
+            <span>Francesco ${fmt(year.francescoTotal)} · Sandu ${fmt(year.sanduTotal)}</span>
+          </div>
+          <div class="personal-detail">
+            <div>
+              <h3>Francesco</h3>
+              <div class="settlement-list">${personalRows(year.francesco)}</div>
+            </div>
+            <div>
+              <h3>Sandu</h3>
+              <div class="settlement-list">${personalRows(year.sandu)}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderPersonalProgress(progress, cutoffLabel) {
+      const projection = progress?.projection || { overall: {}, years: [] };
+      return `
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Progressivi personali</h2>
+            ${cutoffLabel ? `<span class="date-badge">Stop ${cutoffLabel}</span>` : "<span>ID003-ID006</span>"}
+          </div>
+          <div class="personal-grid">
+            <div class="kpi positive"><strong>${fmt(progress?.overall?.francesco)}</strong><span>Progressivo Francesco</span></div>
+            <div class="kpi positive"><strong>${fmt(progress?.overall?.sandu)}</strong><span>Progressivo Sandu</span></div>
+          </div>
+        </div>
+        ${(progress?.years || []).map(renderPersonalYear).join("")}
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Proiezione progressivi personali</h2>
+            ${cutoffLabel ? `<span class="date-badge">Dopo ${cutoffLabel}</span>` : "<span>Futuro</span>"}
+          </div>
+          <div class="personal-grid">
+            <div class="kpi"><strong>${fmt(projection.overall?.francesco)}</strong><span>Francesco futuro</span></div>
+            <div class="kpi"><strong>${fmt(projection.overall?.sandu)}</strong><span>Sandu futuro</span></div>
+          </div>
+          <div class="settlement-list">
+            <div><span>${esc(projection.note || "Valori stimati su prenotazioni future.")}</span><strong></strong></div>
+          </div>
+        </div>
+        ${(projection.years || []).map(renderPersonalYear).join("")}
+      `;
+    }
+
     function renderYearSettlement(year) {
       const delta = Number(year.delta || 0);
       return `
@@ -796,6 +871,7 @@
           <div class="kpi positive"><strong>${fmt(overall.francescoToSandu)}</strong><span>Totale Francesco deve a Sandu</span></div>
           <div class="kpi negative"><strong>${fmt(overall.sanduToFrancesco)}</strong><span>Totale Sandu deve a Francesco</span></div>
         </div>
+        ${renderPersonalProgress(s.personalProgress || {}, cutoffLabel)}
         ${(s.years || []).map(renderYearSettlement).join("")}
         <div class="delta-box ${futureNet >= 0 ? "positive" : "negative"}">
           <span>Proiezione futura ${cutoffLabel ? `<span class="date-badge">Dopo ${cutoffLabel}</span>` : ""}</span>
