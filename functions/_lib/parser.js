@@ -45,15 +45,20 @@ const previousMonthEnd = () => {
 function sheetRows(workbook, sheetName) {
   const sheet = workbook.Sheets[sheetName];
   if (!sheet) return {};
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true });
+  const ref = sheet["!ref"];
   const out = {};
-  rows.forEach((values, idx) => {
+  if (!ref) return out;
+  const range = XLSX.utils.decode_range(ref);
+  for (let rowIdx = range.s.r; rowIdx <= range.e.r; rowIdx += 1) {
     const row = {};
-    values.forEach((value, colIdx) => {
-      if (value !== "") row[XLSX.utils.encode_col(colIdx)] = value;
-    });
-    if (Object.keys(row).length) out[idx + 1] = row;
-  });
+    for (let colIdx = range.s.c; colIdx <= range.e.c; colIdx += 1) {
+      const address = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx });
+      const cell = sheet[address];
+      if (!cell || cell.v === undefined || cell.v === null || cell.v === "") continue;
+      row[XLSX.utils.encode_col(colIdx)] = cell.v;
+    }
+    if (Object.keys(row).length) out[rowIdx + 1] = row;
+  }
   return out;
 }
 
@@ -236,19 +241,31 @@ function parseDueBlocks(rows, side) {
 
 function parsePayments(rows) {
   const payments = [];
-  const yearCols = {};
-  ["AC", "AD"].forEach((col) => {
-    const year = money(rows[2]?.[col]);
-    if (year) yearCols[col] = year;
-  });
-  Object.keys(rows).map(Number).forEach((rn) => {
+  let current = null;
+  Object.keys(rows).map(Number).sort((a, b) => a - b).forEach((rn) => {
     const label = String(rows[rn].AB || "").trim();
     const key = norm(label);
-    const side = key.includes("pagamentofrancescosandu") ? "francesco_to_sandu" : key.includes("pagamentosandufrancesco") ? "sandu_to_francesco" : null;
-    if (!side) return;
-    Object.entries(yearCols).forEach(([col, year]) => {
-      const amount = money(rows[rn][col]);
-      if (amount) payments.push({ row: rn, year, side, amount, label });
+    const yearMatch = label.match(/(20\d{2})/);
+    if (key.includes("pagamenti") && yearMatch) {
+      const side = key.includes("francescosandu") ? "francesco_to_sandu" : key.includes("sandufrancesco") ? "sandu_to_francesco" : null;
+      current = side ? { year: Number(yearMatch[1]), side, title: label } : null;
+      return;
+    }
+    if (!current) return;
+    if (key === "data" || key === "totale") {
+      if (key === "totale") current = null;
+      return;
+    }
+    const amount = money(rows[rn].AC);
+    if (!amount) return;
+    payments.push({
+      row: rn,
+      year: current.year,
+      side: current.side,
+      amount,
+      label: current.title,
+      date: isoDate(rows[rn].AB),
+      note: String(rows[rn].AD || "").trim(),
     });
   });
   return payments;
@@ -276,6 +293,7 @@ function finalizeYears(years) {
 
 export function parseWorkbook(bytes, filename) {
   const workbook = XLSX.read(bytes, { type: "array", cellDates: true });
+  const warnings = [];
   const apartments = [];
   const bookings = [];
   for (const id of TARGET_SHEETS) {
@@ -285,8 +303,10 @@ export function parseWorkbook(bytes, filename) {
     bookings.push(...parsed.bookings);
   }
   const expenseSource = sheetByName(workbook, EXPENSE_SHEET);
+  if (!expenseSource) warnings.push(`Foglio spese non trovato. Fogli presenti: ${workbook.SheetNames.join(", ")}`);
   const expenseRows = expenseSource ? sheetRows(workbook, expenseSource) : {};
   const expenses = parseExpenseGroups(expenseRows);
+  if (expenseSource && !expenses.groups.length) warnings.push(`Foglio ${expenseSource} trovato, ma nessun gruppo spese letto nelle colonne AH:AR.`);
   const dueToSanduBlocks = parseDueBlocks(expenseRows, "francesco_to_sandu");
   const dueToFrancescoBlocks = parseDueBlocks(expenseRows, "sandu_to_francesco");
   const payments = parsePayments(expenseRows);
@@ -338,7 +358,7 @@ export function parseWorkbook(bytes, filename) {
       dueToFrancescoBlocks,
       netFrancescoPaysSandu: settlementFinal.overall.delta,
     },
-    warnings: [],
+    warnings,
     rules: SPLITS,
   };
 }

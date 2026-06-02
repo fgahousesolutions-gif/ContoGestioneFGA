@@ -417,6 +417,15 @@
         const checkIn = parseDate(row.checkIn);
         if (checkIn) years.add(checkIn.getFullYear());
       });
+      (state?.expenses?.groups || []).forEach((group) => {
+        if (group.year) years.add(Number(group.year));
+      });
+      (state?.settlement?.years || []).forEach((year) => {
+        if (year.year) years.add(Number(year.year));
+      });
+      (state?.settlement?.projection?.years || []).forEach((year) => {
+        if (year.year) years.add(Number(year.year));
+      });
       years.add(new Date().getFullYear());
       return [...years].sort((a, b) => b - a);
     }
