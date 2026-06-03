@@ -926,11 +926,16 @@
 
     function calculateForecast(dateValue) {
       const cutoff = parseDate(dateValue) || endOfMonth(new Date().getFullYear(), new Date().getMonth());
+      const officialCutoff = parseDate(state?.settlement?.cutoffDate);
       const settlementYears = {};
       const personalYears = {};
+      let futureSanduBookings = 0;
       (state?.bookings || []).forEach((booking) => {
         const checkIn = parseDate(booking.checkIn);
         if (!checkIn || checkIn > cutoff) return;
+        if (officialCutoff && checkIn > officialCutoff) {
+          futureSanduBookings += Number(booking.sanduDueByFrancesco || 0);
+        }
         addForecastSettlement(settlementYears, checkIn.getFullYear(), "francesco_to_sandu", "Utili appartamenti", Number(booking.sanduDueByFrancesco || 0));
         addForecastPersonal(personalYears, checkIn.getFullYear(), "francesco", "Quote prenotazioni", Number(booking.francesco || 0));
         addForecastPersonal(personalYears, checkIn.getFullYear(), "sandu", "Quote prenotazioni", Number(booking.sandu || 0));
@@ -960,6 +965,7 @@
         cutoff,
         settlement: finalizeForecastSettlement(settlementYears),
         personal: finalizeForecastPersonal(personalYears),
+        futureSanduBookings,
       };
     }
 
@@ -989,14 +995,22 @@
             <div class="kpi positive"><strong>${fmt(forecast.personal.overall.francesco)}</strong><span>Francesco previsto</span></div>
             <div class="kpi positive"><strong>${fmt(forecast.personal.overall.sandu)}</strong><span>Sandu previsto</span></div>
           </div>
+          <div class="settlement-grid">
+            <div class="kpi"><strong>${fmt(forecast.futureSanduBookings)}</strong><span>Quote future Sandu da prenotazioni</span></div>
+            <div class="kpi"><strong>${fmt(forecast.settlement.overall.delta)}</strong><span>Saldo netto previsto da inizio rapporto</span></div>
+          </div>
+          <div class="settlement-list">
+            <div><span>Le quote future Sandu mostrano solo le prenotazioni dopo lo stop ufficiale; il saldo netto previsto compensa anche dare/avere e pagamenti gia presenti nel file.</span><strong></strong></div>
+          </div>
           <div class="settlement">
             <div class="kpi positive"><strong>${fmt(forecast.settlement.overall.francescoToSandu)}</strong><span>Francesco deve a Sandu previsto</span></div>
             <div class="kpi negative"><strong>${fmt(forecast.settlement.overall.sanduToFrancesco)}</strong><span>Sandu deve a Francesco previsto</span></div>
           </div>
           <div class="delta-box ${net >= 0 ? "positive" : "negative"}">
-            <span>Delta previsto <span class="date-badge">Fino al ${esc(label)}</span></span>
+            <span>Saldo netto previsto <span class="date-badge">Fino al ${esc(label)}</span></span>
             <strong>${fmt(Math.abs(net))}</strong>
             <p>${net >= 0 ? "Francesco dovrebbe pagare Sandu" : "Sandu dovrebbe pagare Francesco"}</p>
+            <p>Il saldo netto previsto considera prenotazioni con check-in entro la data scelta, spese gia inserite, tasse/pulizie e pagamenti gia registrati nel file. Non include pagamenti futuri non ancora scritti.</p>
           </div>
         </div>
         ${forecast.personal.years.map(renderPersonalYear).join("")}
