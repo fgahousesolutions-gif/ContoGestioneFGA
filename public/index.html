@@ -150,6 +150,17 @@
       font-weight: 850;
       cursor: pointer;
     }
+    input[type=date] {
+      width: 100%;
+      min-height: 46px;
+      padding: 9px 12px;
+      border: 2px solid #9db8c9;
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 850;
+    }
     select:focus {
       outline: 3px solid rgba(32, 95, 143, .16);
       border-color: var(--blue);
@@ -332,6 +343,14 @@
       margin: 0 0 10px;
       font-size: 14px;
     }
+    .forecast-controls {
+      display: grid;
+      grid-template-columns: minmax(180px, 260px) minmax(180px, 260px);
+      gap: 12px;
+      padding: 14px 16px;
+      background: #f8fbfd;
+      border-bottom: 1px solid var(--line);
+    }
     .positive strong { color: var(--green); }
     .negative strong { color: var(--red); }
     .warnings {
@@ -353,7 +372,7 @@
     @media (max-width: 920px) {
       header, .upload { grid-template-columns: 1fr; }
       .tabs, .kpis, .settlement { grid-template-columns: 1fr; }
-      .settlement-grid, .summary-kpis, .personal-grid, .personal-detail { grid-template-columns: 1fr; }
+      .settlement-grid, .summary-kpis, .personal-grid, .personal-detail, .forecast-controls { grid-template-columns: 1fr; }
       .dashboard-layout { grid-template-columns: 1fr; }
       .side-panel { position: static; }
       header button, .upload button { width: 100%; }
@@ -396,6 +415,7 @@
     let state = null;
     let selectedApartment = "all";
     let selectedYear = String(new Date().getFullYear());
+    let forecastDate = "";
 
     const $ = (id) => document.getElementById(id);
     const fmt = (value) => euro.format(Number(value || 0));
@@ -417,6 +437,19 @@
       if (!value) return null;
       const date = new Date(`${value}T00:00:00`);
       return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function isoDay(date) {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    }
+
+    function endOfMonth(year, monthIndex) {
+      return new Date(year, monthIndex + 1, 0);
+    }
+
+    function dateLabel(value) {
+      const date = parseDate(value);
+      return date ? new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" }).format(date) : "";
     }
 
     function apartmentOptions() {
@@ -830,6 +863,147 @@
       `;
     }
 
+    function addForecastSettlement(years, year, side, group, amount) {
+      const key = String(year);
+      const entry = years[key] ||= { year, francescoToSandu: {}, sanduToFrancesco: {}, francescoToSanduTotal: 0, sanduToFrancescoTotal: 0, delta: 0 };
+      const mapKey = side === "francesco_to_sandu" ? "francescoToSandu" : "sanduToFrancesco";
+      const totalKey = side === "francesco_to_sandu" ? "francescoToSanduTotal" : "sanduToFrancescoTotal";
+      entry[mapKey][group] = (entry[mapKey][group] || 0) + Number(amount || 0);
+      entry[totalKey] += Number(amount || 0);
+    }
+
+    function addForecastPersonal(years, year, person, group, amount) {
+      const key = String(year);
+      const entry = years[key] ||= { year, francesco: {}, sandu: {}, francescoTotal: 0, sanduTotal: 0 };
+      const totalKey = person === "francesco" ? "francescoTotal" : "sanduTotal";
+      entry[person][group] = (entry[person][group] || 0) + Number(amount || 0);
+      entry[totalKey] += Number(amount || 0);
+    }
+
+    function finalizeForecastSettlement(years) {
+      const overall = { francescoToSandu: 0, sanduToFrancesco: 0, delta: 0 };
+      Object.values(years).forEach((entry) => {
+        entry.delta = entry.francescoToSanduTotal - entry.sanduToFrancescoTotal;
+        overall.francescoToSandu += entry.francescoToSanduTotal;
+        overall.sanduToFrancesco += entry.sanduToFrancescoTotal;
+      });
+      overall.delta = overall.francescoToSandu - overall.sanduToFrancesco;
+      return { overall, years: Object.values(years).sort((a, b) => b.year - a.year) };
+    }
+
+    function finalizeForecastPersonal(years) {
+      const overall = { francesco: 0, sandu: 0 };
+      Object.values(years).forEach((entry) => {
+        overall.francesco += entry.francescoTotal;
+        overall.sandu += entry.sanduTotal;
+      });
+      return { overall, years: Object.values(years).sort((a, b) => b.year - a.year) };
+    }
+
+    function includeAnnualItem(year, cutoff) {
+      const itemYear = Number(year || 0);
+      if (!itemYear) return false;
+      return itemYear <= cutoff.getFullYear();
+    }
+
+    function includeDatedItem(item, cutoff) {
+      const date = parseDate(item?.checkIn || item?.date);
+      if (date) return date <= cutoff;
+      return includeAnnualItem(item?.year, cutoff);
+    }
+
+    function forecastOptions() {
+      const now = new Date();
+      const options = [];
+      for (let i = 0; i < 12; i += 1) {
+        const date = endOfMonth(now.getFullYear(), now.getMonth() + i);
+        options.push({ value: isoDay(date), label: `Fine ${new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" }).format(date)}` });
+      }
+      const current = forecastDate || isoDay(endOfMonth(now.getFullYear(), now.getMonth()));
+      if (!options.some((option) => option.value === current)) options.unshift({ value: current, label: `Data scelta ${dateLabel(current)}` });
+      return options.map((option) => `<option value="${option.value}" ${option.value === current ? "selected" : ""}>${esc(option.label)}</option>`).join("");
+    }
+
+    function calculateForecast(dateValue) {
+      const cutoff = parseDate(dateValue) || endOfMonth(new Date().getFullYear(), new Date().getMonth());
+      const settlementYears = {};
+      const personalYears = {};
+      (state?.bookings || []).forEach((booking) => {
+        const checkIn = parseDate(booking.checkIn);
+        if (!checkIn || checkIn > cutoff) return;
+        addForecastSettlement(settlementYears, checkIn.getFullYear(), "francesco_to_sandu", "Utili appartamenti", Number(booking.sanduDueByFrancesco || 0));
+        addForecastPersonal(personalYears, checkIn.getFullYear(), "francesco", "Quote prenotazioni", Number(booking.francesco || 0));
+        addForecastPersonal(personalYears, checkIn.getFullYear(), "sandu", "Quote prenotazioni", Number(booking.sandu || 0));
+      });
+      (state?.settlement?.dueToSanduBlocks || []).forEach((block) => {
+        (block.items || []).forEach((item) => {
+          if (includeDatedItem(item, cutoff)) addForecastSettlement(settlementYears, item.year, "francesco_to_sandu", item.category || "Sanremo", Number(item.amount || 0));
+        });
+      });
+      (state?.expenses?.items || []).forEach((item) => {
+        if (!includeAnnualItem(item.year, cutoff)) return;
+        const group = String(item.category || "").trim().toLowerCase() === "varie" ? "Varie" : item.kind === "ADS" ? "ADS" : "Spese appartamenti";
+        const share = Number(item.share || item.francescoShare || 0);
+        addForecastSettlement(settlementYears, item.year, "sandu_to_francesco", group, share);
+        addForecastPersonal(personalYears, item.year, "francesco", group, -share);
+        addForecastPersonal(personalYears, item.year, "sandu", group, -share);
+      });
+      (state?.settlement?.dueToFrancescoBlocks || []).forEach((block) => {
+        (block.items || []).forEach((item) => {
+          if (includeDatedItem(item, cutoff)) addForecastSettlement(settlementYears, item.year, "sandu_to_francesco", "Tassa soggiorno Sanremo", Number(item.amount || 0));
+        });
+      });
+      (state?.settlement?.payments || []).forEach((payment) => {
+        if (includeDatedItem(payment, cutoff)) addForecastSettlement(settlementYears, payment.year, payment.side, "Pagamenti avvenuti", -Number(payment.amount || 0));
+      });
+      return {
+        cutoff,
+        settlement: finalizeForecastSettlement(settlementYears),
+        personal: finalizeForecastPersonal(personalYears),
+      };
+    }
+
+    function renderForecastPanel() {
+      const now = new Date();
+      if (!forecastDate) forecastDate = isoDay(endOfMonth(now.getFullYear(), now.getMonth()));
+      const forecast = calculateForecast(forecastDate);
+      const net = Number(forecast.settlement.overall.delta || 0);
+      const label = dateLabel(forecastDate);
+      return `
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Previsione per periodo</h2>
+            <span class="date-badge">Fino al ${esc(label)}</span>
+          </div>
+          <div class="forecast-controls">
+            <label class="field">
+              Fine mese
+              <select id="forecastPreset">${forecastOptions()}</select>
+            </label>
+            <label class="field">
+              Data libera
+              <input id="forecastDateInput" type="date" value="${esc(forecastDate)}">
+            </label>
+          </div>
+          <div class="settlement-grid">
+            <div class="kpi positive"><strong>${fmt(forecast.personal.overall.francesco)}</strong><span>Francesco previsto</span></div>
+            <div class="kpi positive"><strong>${fmt(forecast.personal.overall.sandu)}</strong><span>Sandu previsto</span></div>
+          </div>
+          <div class="settlement">
+            <div class="kpi positive"><strong>${fmt(forecast.settlement.overall.francescoToSandu)}</strong><span>Francesco deve a Sandu previsto</span></div>
+            <div class="kpi negative"><strong>${fmt(forecast.settlement.overall.sanduToFrancesco)}</strong><span>Sandu deve a Francesco previsto</span></div>
+          </div>
+          <div class="delta-box ${net >= 0 ? "positive" : "negative"}">
+            <span>Delta previsto <span class="date-badge">Fino al ${esc(label)}</span></span>
+            <strong>${fmt(Math.abs(net))}</strong>
+            <p>${net >= 0 ? "Francesco dovrebbe pagare Sandu" : "Sandu dovrebbe pagare Francesco"}</p>
+          </div>
+        </div>
+        ${forecast.personal.years.map(renderPersonalYear).join("")}
+        ${forecast.settlement.years.map(renderYearSettlement).join("")}
+      `;
+    }
+
     function renderYearSettlement(year) {
       const delta = Number(year.delta || 0);
       return `
@@ -872,6 +1046,7 @@
           <div class="kpi negative"><strong>${fmt(overall.sanduToFrancesco)}</strong><span>Totale Sandu deve a Francesco</span></div>
         </div>
         ${renderPersonalProgress(s.personalProgress || {}, cutoffLabel)}
+        ${renderForecastPanel()}
         ${(s.years || []).map(renderYearSettlement).join("")}
         <div class="delta-box ${futureNet >= 0 ? "positive" : "negative"}">
           <span>Proiezione futura ${cutoffLabel ? `<span class="date-badge">Dopo ${cutoffLabel}</span>` : ""}</span>
@@ -880,6 +1055,20 @@
         </div>
         ${(projection.years || []).map(renderYearSettlement).join("")}
       `;
+      const preset = $("forecastPreset");
+      const input = $("forecastDateInput");
+      if (preset) {
+        preset.addEventListener("change", () => {
+          forecastDate = preset.value;
+          renderSettlement();
+        });
+      }
+      if (input) {
+        input.addEventListener("change", () => {
+          forecastDate = input.value;
+          renderSettlement();
+        });
+      }
     }
 
     function renderAll() {
