@@ -1010,6 +1010,12 @@
       return isoDay(endOfMonth(now.getFullYear(), now.getMonth()));
     }
 
+    function nextIndicativePaymentIso() {
+      const now = new Date();
+      const date = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
+      return isoDay(date);
+    }
+
     function aggregateBookingsBetween(startExclusive, endInclusive) {
       const start = startExclusive ? parseDate(startExclusive) : null;
       const end = endInclusive ? parseDate(endInclusive) : null;
@@ -1149,13 +1155,16 @@
       const stopIso = nextStopIso();
       const forecast = calculateForecast(stopIso);
       const label = dateLabel(stopIso);
+      const paymentLabel = dateLabel(nextIndicativePaymentIso());
+      const monthLabel = new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" }).format(parseDate(nextIndicativePaymentIso()));
       const net = Number(forecast.settlement.overall.delta || 0);
       return `
-        <div class="section-title"><h2>Delta prossimo stop</h2><span class="date-badge">Stop ${esc(label)}</span></div>
+        <div class="section-title"><h2>Prossima previsione pagamento</h2><span class="date-badge">Competenze fino al ${esc(label)}</span></div>
         <div class="delta-box ${net >= 0 ? "positive" : "negative"}">
-          <span>Da saldare al prossimo giro</span>
+          <span>Pagamento indicativo ${esc(paymentLabel)}</span>
           <strong>${fmt(Math.abs(net))}</strong>
           <p>${net >= 0 ? "Francesco deve pagare Sandu" : "Sandu deve pagare Francesco"}</p>
+          <p>Data da definirsi in base ad incassi e spese, indicativamente nel mese di ${esc(monthLabel)}.</p>
         </div>
         <div class="settlement">
           <div class="kpi sandu"><strong>${fmt(forecast.settlement.overall.francescoToSandu)}</strong><span>Francesco -> Sandu previsto</span></div>
