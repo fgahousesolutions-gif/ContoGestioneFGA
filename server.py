@@ -792,11 +792,24 @@ class Handler(BaseHTTPRequestHandler):
                 return
             length = int(self.headers.get("content-length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            filename = str(payload.get("filename") or "workbook.xlsx")
+            filename = str(payload.get("filename") or "").strip()
+            if not filename:
+                json_response(self, {"error": "Nome file mancante."}, 400)
+                return
             if not filename.lower().endswith(".xlsx"):
                 json_response(self, {"error": "Carica un file .xlsx. I vecchi .xls vanno prima salvati come .xlsx da Excel o Numbers."}, 400)
                 return
-            raw = base64.b64decode(payload.get("contentBase64") or "")
+            try:
+                raw = base64.b64decode(payload.get("contentBase64") or "", validate=True)
+            except Exception:
+                json_response(self, {"error": "File non leggibile: contenuto base64 non valido."}, 400)
+                return
+            if not raw:
+                json_response(self, {"error": "Il file caricato e vuoto."}, 400)
+                return
+            if not raw.startswith(b"PK"):
+                json_response(self, {"error": "Il file non sembra un .xlsx valido. Aprilo con Excel/Numbers ed esportalo come Excel .xlsx."}, 400)
+                return
             state = parse_workbook(raw, filename)
             save_state(state)
             json_response(self, state)

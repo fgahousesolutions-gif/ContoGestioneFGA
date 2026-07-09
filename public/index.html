@@ -81,6 +81,13 @@
     }
     button:disabled { opacity: .55; cursor: wait; }
     .ghost { background: #e9eef2; color: var(--ink); }
+    .header-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
     .status {
       display: none;
       margin-bottom: 18px;
@@ -305,6 +312,38 @@
       line-height: 1;
       font-variant-numeric: tabular-nums;
     }
+    .quick-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .quick-card {
+      padding: 16px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      min-height: 126px;
+    }
+    .quick-card h3 {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+    }
+    .quick-card strong {
+      display: block;
+      font-size: clamp(22px, 3vw, 34px);
+      line-height: 1.05;
+      font-variant-numeric: tabular-nums;
+    }
+    .quick-card p {
+      margin-top: 6px;
+      font-size: 13px;
+      font-weight: 760;
+    }
     .settlement-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -351,6 +390,15 @@
       background: #f8fbfd;
       border-bottom: 1px solid var(--line);
     }
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 24px 0 12px;
+    }
+    .section-title h2 { font-size: 22px; }
+    .compact-table table { min-width: 720px; }
     .positive strong { color: var(--green); }
     .negative strong { color: var(--red); }
     .warnings {
@@ -372,10 +420,11 @@
     @media (max-width: 920px) {
       header, .upload { grid-template-columns: 1fr; }
       .tabs, .kpis, .settlement { grid-template-columns: 1fr; }
-      .settlement-grid, .summary-kpis, .personal-grid, .personal-detail, .forecast-controls { grid-template-columns: 1fr; }
+      .settlement-grid, .summary-kpis, .personal-grid, .personal-detail, .forecast-controls, .quick-grid { grid-template-columns: 1fr; }
       .dashboard-layout { grid-template-columns: 1fr; }
       .side-panel { position: static; }
       header button, .upload button { width: 100%; }
+      .header-actions { justify-content: stretch; }
     }
   </style>
 </head>
@@ -385,7 +434,10 @@
       <h1>Rendiconto Sandu Francesco</h1>
       <p>Appartamenti ID003, ID004, ID005 e ID006 con utile, spese condivise e dare/avere.</p>
     </div>
-    <button class="ghost" id="refreshBtn">Aggiorna</button>
+    <div class="header-actions">
+      <button class="ghost" id="exportCsvBtn" type="button" disabled>Scarica CSV</button>
+      <button class="ghost" id="refreshBtn" type="button">Aggiorna</button>
+    </div>
   </header>
 
   <main>
@@ -570,13 +622,16 @@
 
     function renderStatus() {
       const box = $("statusBox");
+      const exportBtn = $("exportCsvBtn");
       if (!state) {
         box.classList.remove("active");
         box.textContent = "";
+        if (exportBtn) exportBtn.disabled = true;
         return;
       }
       box.classList.add("active");
       box.textContent = `Ultimo aggiornamento: ${uploadedLabel(state.uploadedAt)} - File: ${state.filename || ""}`;
+      if (exportBtn) exportBtn.disabled = false;
 
       const warnings = $("warningsBox");
       if (state.warnings && state.warnings.length) {
@@ -863,6 +918,209 @@
       `;
     }
 
+    function latestPayment(side) {
+      const payments = (state?.settlement?.payments || []).filter((payment) => !side || payment.side === side);
+      return payments.sort((a, b) => {
+        const dateA = parseDate(a.date)?.getTime() || 0;
+        const dateB = parseDate(b.date)?.getTime() || 0;
+        if (dateA !== dateB) return dateB - dateA;
+        return Number(b.row || 0) - Number(a.row || 0);
+      })[0] || null;
+    }
+
+    function paymentPeriod(payment, fallbackLabel) {
+      const text = `${payment?.note || ""} ${payment?.label || ""}`;
+      const matchIt = text.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](20\d{2})/);
+      if (matchIt) return `${matchIt[1].padStart(2, "0")}/${matchIt[2].padStart(2, "0")}/${matchIt[3]}`;
+      const matchIso = text.match(/(20\d{2})-(\d{2})-(\d{2})/);
+      if (matchIso) return `${matchIso[3]}/${matchIso[2]}/${matchIso[1]}`;
+      return fallbackLabel || "";
+    }
+
+    function nextStopIso() {
+      const now = new Date();
+      return isoDay(endOfMonth(now.getFullYear(), now.getMonth()));
+    }
+
+    function aggregateBookingsBetween(startExclusive, endInclusive) {
+      const start = startExclusive ? parseDate(startExclusive) : null;
+      const end = endInclusive ? parseDate(endInclusive) : null;
+      const rows = [];
+      (state?.bookings || []).forEach((booking) => {
+        const checkIn = parseDate(booking.checkIn);
+        if (!checkIn) return;
+        if (start && checkIn <= start) return;
+        if (end && checkIn > end) return;
+        rows.push(booking);
+      });
+      const byApartment = {};
+      rows.forEach((booking) => {
+        const key = booking.apartmentLabel || booking.sheet || "Appartamento";
+        const item = byApartment[key] ||= { apartment: key, count: 0, gross: 0, netOwner: 0, francesco: 0, sandu: 0, sanduDueByFrancesco: 0 };
+        item.count += 1;
+        ["gross", "netOwner", "francesco", "sandu", "sanduDueByFrancesco"].forEach((field) => {
+          item[field] += Number(booking[field] || 0);
+        });
+      });
+      return Object.values(byApartment).sort((a, b) => a.apartment.localeCompare(b.apartment));
+    }
+
+    function aggregateRows(rows) {
+      return rows.reduce((acc, row) => {
+        acc.count += Number(row.count || 0);
+        ["gross", "netOwner", "francesco", "sandu", "sanduDueByFrancesco"].forEach((field) => {
+          acc[field] += Number(row[field] || 0);
+        });
+        return acc;
+      }, { count: 0, gross: 0, netOwner: 0, francesco: 0, sandu: 0, sanduDueByFrancesco: 0 });
+    }
+
+    function apartmentAggregateTable(rows) {
+      if (!rows.length) return `<div class="empty">Nessuna prenotazione nel periodo.</div>`;
+      const total = aggregateRows(rows);
+      const body = rows.map((row) => `
+        <tr>
+          <td>${esc(row.apartment)}</td>
+          <td>${integerFmt.format(row.count)}</td>
+          <td class="money">${fmt(row.gross)}</td>
+          <td class="money">${fmt(row.netOwner)}</td>
+          <td class="money">${fmt(row.francesco)}</td>
+          <td class="money">${fmt(row.sandu)}</td>
+          <td class="money">${fmt(row.sanduDueByFrancesco)}</td>
+        </tr>
+      `).join("");
+      return `
+        <div class="table-wrap compact-table">
+          <table>
+            <thead><tr><th>Appartamento</th><th>Pren.</th><th class="money">Lordo</th><th class="money">Netto proprieta</th><th class="money">Francesco</th><th class="money">Sandu</th><th class="money">Da girare</th></tr></thead>
+            <tbody>${body}</tbody>
+            <tfoot><tr><th>Totale</th><th>${integerFmt.format(total.count)}</th><th class="money">${fmt(total.gross)}</th><th class="money">${fmt(total.netOwner)}</th><th class="money">${fmt(total.francesco)}</th><th class="money">${fmt(total.sandu)}</th><th class="money">${fmt(total.sanduDueByFrancesco)}</th></tr></tfoot>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderPaymentStatus(cutoffLabel, currentNet) {
+      const payment = latestPayment("francesco_to_sandu");
+      const residual = Number(currentNet || 0);
+      const residualLabel = Math.abs(residual) < 0.01 ? "Periodo saldato" : residual > 0 ? "Residuo Francesco -> Sandu" : "Credito Francesco";
+      return `
+        <div class="section-title"><h2>Stato pagamenti</h2><span class="date-badge">Stop ufficiale ${esc(cutoffLabel || "-")}</span></div>
+        <div class="quick-grid">
+          <div class="quick-card">
+            <h3>Ultimo pagamento</h3>
+            <strong>${payment ? fmt(payment.amount) : fmt(0)}</strong>
+            <p>${payment ? `Francesco -> Sandu · ${esc(dateLabel(payment.date) || "data non indicata")}` : "Nessun pagamento registrato"}</p>
+          </div>
+          <div class="quick-card">
+            <h3>Periodo pagato</h3>
+            <strong>${esc(paymentPeriod(payment, cutoffLabel) || "-")}</strong>
+            <p>${esc(payment?.note || "Periodo dedotto dal pagamento registrato.")}</p>
+          </div>
+          <div class="quick-card ${residual >= 0 ? "positive" : "negative"}">
+            <h3>Saldo dopo pagamento</h3>
+            <strong>${fmt(Math.abs(residual))}</strong>
+            <p>${esc(residualLabel)}</p>
+          </div>
+          <div class="quick-card">
+            <h3>File</h3>
+            <strong>${esc(state?.filename || "-")}</strong>
+            <p>${esc(uploadedLabel(state?.uploadedAt))}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderNextStopSummary() {
+      const stopIso = nextStopIso();
+      const forecast = calculateForecast(stopIso);
+      const label = dateLabel(stopIso);
+      const net = Number(forecast.settlement.overall.delta || 0);
+      return `
+        <div class="section-title"><h2>Delta prossimo stop</h2><span class="date-badge">Stop ${esc(label)}</span></div>
+        <div class="delta-box ${net >= 0 ? "positive" : "negative"}">
+          <span>Da saldare al prossimo giro</span>
+          <strong>${fmt(Math.abs(net))}</strong>
+          <p>${net >= 0 ? "Francesco deve pagare Sandu" : "Sandu deve pagare Francesco"}</p>
+        </div>
+        <div class="settlement">
+          <div class="kpi positive"><strong>${fmt(forecast.settlement.overall.francescoToSandu)}</strong><span>Francesco -> Sandu previsto</span></div>
+          <div class="kpi negative"><strong>${fmt(forecast.settlement.overall.sanduToFrancesco)}</strong><span>Sandu -> Francesco previsto</span></div>
+        </div>
+      `;
+    }
+
+    function renderMovementPanels() {
+      const officialStop = state?.settlement?.cutoffDate || "";
+      const nextStop = nextStopIso();
+      const inCourse = aggregateBookingsBetween(officialStop, nextStop);
+      const future = aggregateBookingsBetween(nextStop, null);
+      return `
+        <div class="section-title"><h2>Movimenti in corso</h2><span class="date-badge">${officialStop ? `Dopo ${dateLabel(officialStop)}` : ""} fino al ${dateLabel(nextStop)}</span></div>
+        <div class="panel">
+          <div class="panel-head"><h2>Entrate appartamenti maturande</h2><span>Totali per appartamento</span></div>
+          ${apartmentAggregateTable(inCourse)}
+        </div>
+        <div class="section-title"><h2>Movimenti futuri</h2><span class="date-badge">Dopo ${dateLabel(nextStop)}</span></div>
+        <div class="panel">
+          <div class="panel-head"><h2>Prenotazioni future aggregate</h2><span>Valori da confermare</span></div>
+          ${apartmentAggregateTable(future)}
+        </div>
+      `;
+    }
+
+    function csvCell(value) {
+      const text = String(value ?? "").replace(/\r?\n/g, " ");
+      return /[",;\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    }
+
+    function csvNumber(value) {
+      return Number(value || 0).toFixed(2).replace(".", ",");
+    }
+
+    function buildCsvRows() {
+      const rows = [["Sezione", "Voce", "Periodo/Data", "Valore", "Francesco", "Sandu", "Francesco->Sandu", "Sandu->Francesco", "Note"]];
+      if (!state) return rows;
+      const s = state.settlement || {};
+      rows.push(["File", state.filename || "", uploadedLabel(state.uploadedAt), "", "", "", "", "", ""]);
+      rows.push(["Rendiconto", "Stop ufficiale", dateLabel(s.cutoffDate), "", "", "", "", "", ""]);
+      rows.push(["Rendiconto", "Delta ufficiale", dateLabel(s.cutoffDate), csvNumber(Math.abs(s.overall?.delta)), "", "", csvNumber(s.overall?.francescoToSandu), csvNumber(s.overall?.sanduToFrancesco), Number(s.overall?.delta || 0) >= 0 ? "Francesco paga Sandu" : "Sandu paga Francesco"]);
+      (s.payments || []).forEach((payment) => {
+        rows.push(["Pagamenti", payment.label || "", dateLabel(payment.date), csvNumber(payment.amount), "", "", payment.side === "francesco_to_sandu" ? csvNumber(payment.amount) : "", payment.side === "sandu_to_francesco" ? csvNumber(payment.amount) : "", payment.note || ""]);
+      });
+      (s.years || []).forEach((year) => {
+        rows.push(["Anno", String(year.year), "", csvNumber(Math.abs(year.delta)), "", "", csvNumber(year.francescoToSanduTotal), csvNumber(year.sanduToFrancescoTotal), year.delta >= 0 ? "Francesco paga Sandu" : "Sandu paga Francesco"]);
+        Object.entries(year.francescoToSandu || {}).forEach(([name, value]) => rows.push(["Dettaglio anno", name, String(year.year), "", "", "", csvNumber(value), "", ""]));
+        Object.entries(year.sanduToFrancesco || {}).forEach(([name, value]) => rows.push(["Dettaglio anno", name, String(year.year), "", "", "", "", csvNumber(value), ""]));
+      });
+      (s.personalProgress?.years || []).forEach((year) => {
+        rows.push(["Progressivi personali", String(year.year), "", "", csvNumber(year.francescoTotal), csvNumber(year.sanduTotal), "", "", ""]);
+      });
+      aggregateBookingsBetween(null, s.cutoffDate).forEach((row) => {
+        rows.push(["Prenotazioni aggregate", row.apartment, `Fino al ${dateLabel(s.cutoffDate)}`, csvNumber(row.gross), csvNumber(row.francesco), csvNumber(row.sandu), csvNumber(row.sanduDueByFrancesco), "", `${row.count} prenotazioni; netto proprieta ${csvNumber(row.netOwner)}`]);
+      });
+      aggregateBookingsBetween(s.cutoffDate, null).forEach((row) => {
+        rows.push(["Prenotazioni future aggregate", row.apartment, `Dopo ${dateLabel(s.cutoffDate)}`, csvNumber(row.gross), csvNumber(row.francesco), csvNumber(row.sandu), csvNumber(row.sanduDueByFrancesco), "", `${row.count} prenotazioni; netto proprieta ${csvNumber(row.netOwner)}`]);
+      });
+      return rows;
+    }
+
+    function downloadCsv() {
+      if (!state) return;
+      const rows = buildCsvRows();
+      const csv = rows.map((row) => row.map(csvCell).join(";")).join("\n");
+      const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `rendiconto-sandu-francesco-${stamp}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
     function addForecastSettlement(years, year, side, group, amount) {
       const key = String(year);
       const entry = years[key] ||= { year, francescoToSandu: {}, sanduToFrancesco: {}, francescoToSanduTotal: 0, sanduToFrancescoTotal: 0, delta: 0 };
@@ -1050,6 +1308,10 @@
       const futureNet = Number(projection.overall?.delta || 0);
       const cutoffLabel = s.cutoffDate ? new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${s.cutoffDate}T00:00:00`)) : "";
       $("settlement").innerHTML = !state ? `<div class="panel"><div class="empty">Carica il file Excel per calcolare il rendiconto.</div></div>` : `
+        ${renderPaymentStatus(cutoffLabel, net)}
+        ${renderNextStopSummary()}
+        ${renderMovementPanels()}
+        <div class="section-title"><h2>Saldo ufficiale</h2><span class="date-badge">Stop ${esc(cutoffLabel)}</span></div>
         <div class="delta-box ${net >= 0 ? "positive" : "negative"}">
           <span>Delta da saldare ${cutoffLabel ? `<span class="date-badge">Stop ${cutoffLabel}</span>` : ""}</span>
           <strong>${fmt(Math.abs(net))}</strong>
@@ -1059,8 +1321,10 @@
           <div class="kpi positive"><strong>${fmt(overall.francescoToSandu)}</strong><span>Totale Francesco deve a Sandu</span></div>
           <div class="kpi negative"><strong>${fmt(overall.sanduToFrancesco)}</strong><span>Totale Sandu deve a Francesco</span></div>
         </div>
+        <div class="section-title"><h2>Progressivi e previsione</h2><span>Dettaglio sintetico</span></div>
         ${renderPersonalProgress(s.personalProgress || {}, cutoffLabel)}
         ${renderForecastPanel()}
+        <div class="section-title"><h2>Dettagli rendiconto</h2><span>Per anno e voce</span></div>
         ${(s.years || []).map(renderYearSettlement).join("")}
         <div class="delta-box ${futureNet >= 0 ? "positive" : "negative"}">
           <span>Proiezione futura ${cutoffLabel ? `<span class="date-badge">Dopo ${cutoffLabel}</span>` : ""}</span>
@@ -1108,21 +1372,27 @@
       }
     }
 
-    function fileToBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = String(reader.result || "");
-          const comma = result.indexOf(",");
-          resolve(comma >= 0 ? result.slice(comma + 1) : result);
-        };
-        reader.onerror = () => reject(reader.error || new Error("Lettura file non riuscita"));
-        reader.readAsDataURL(file);
-      });
+    function arrayBufferToBase64(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      const chunkSize = 0x8000;
+      for (let index = 0; index < bytes.length; index += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+      }
+      return btoa(binary);
     }
 
     async function uploadFile(file) {
-      const contentBase64 = await fileToBase64(file);
+      if (!file.name.toLowerCase().endsWith(".xlsx")) {
+        throw new Error("Carica un file Excel .xlsx. Se e un vecchio .xls o viene da Numbers, esportalo prima come .xlsx.");
+      }
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      if (!bytes.length) throw new Error("Il file caricato e vuoto.");
+      if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
+        throw new Error("Il file non sembra un .xlsx valido. Aprilo con Excel/Numbers ed esportalo come Excel .xlsx.");
+      }
+      const contentBase64 = arrayBufferToBase64(buffer);
       const res = await fetch("/api/upload", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1163,6 +1433,7 @@
     });
 
     $("refreshBtn").addEventListener("click", loadCurrent);
+    $("exportCsvBtn").addEventListener("click", downloadCsv);
     loadCurrent();
   </script>
 </body>
