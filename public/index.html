@@ -15,6 +15,12 @@
       --blue: #205f8f;
       --red: #b42318;
       --yellow: #996800;
+      --francesco: #146c4f;
+      --francesco-soft: #edf7f2;
+      --francesco-line: #b8ddcc;
+      --sandu: #8f3f20;
+      --sandu-soft: #fff3e8;
+      --sandu-line: #efc6a6;
     }
     * { box-sizing: border-box; }
     body {
@@ -325,6 +331,21 @@
       border-radius: 8px;
       min-height: 126px;
     }
+    .quick-card.francesco, .kpi.francesco {
+      border-color: var(--francesco-line);
+      background: var(--francesco-soft);
+    }
+    .quick-card.sandu, .kpi.sandu {
+      border-color: var(--sandu-line);
+      background: var(--sandu-soft);
+    }
+    .quick-card.francesco strong, .kpi.francesco strong { color: var(--francesco); }
+    .quick-card.sandu strong, .kpi.sandu strong { color: var(--sandu); }
+    .quick-card strong.text-value {
+      font-size: 20px;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
     .quick-card h3 {
       margin: 0 0 8px;
       color: var(--muted);
@@ -390,6 +411,48 @@
       background: #f8fbfd;
       border-bottom: 1px solid var(--line);
     }
+    .payment-list {
+      display: grid;
+      gap: 10px;
+      padding: 14px 16px;
+    }
+    .payment-card {
+      display: grid;
+      grid-template-columns: 130px minmax(0, 1fr) 150px;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+    .payment-card.francesco {
+      border-color: var(--francesco-line);
+      background: var(--francesco-soft);
+    }
+    .payment-card.sandu {
+      border-color: var(--sandu-line);
+      background: var(--sandu-soft);
+    }
+    .payment-card.francesco strong { color: var(--francesco); }
+    .payment-card.sandu strong { color: var(--sandu); }
+    .payment-card strong {
+      display: block;
+      font-size: 20px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .payment-card span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .payment-card p {
+      margin: 2px 0 0;
+      font-size: 13px;
+      font-weight: 760;
+      color: var(--muted);
+    }
     .section-title {
       display: flex;
       align-items: center;
@@ -425,6 +488,11 @@
       .side-panel { position: static; }
       header button, .upload button { width: 100%; }
       .header-actions { justify-content: stretch; }
+      main { padding-inline: 12px; }
+      .delta-box strong, .quick-card strong, .kpi strong { font-size: clamp(26px, 11vw, 40px); }
+      .panel-head { align-items: flex-start; flex-direction: column; }
+      .payment-card { grid-template-columns: 1fr; }
+      .payment-card strong { white-space: normal; }
     }
   </style>
 </head>
@@ -896,8 +964,8 @@
             ${cutoffLabel ? `<span class="date-badge">Stop ${cutoffLabel}</span>` : "<span>ID003-ID006</span>"}
           </div>
           <div class="personal-grid">
-            <div class="kpi positive"><strong>${fmt(progress?.overall?.francesco)}</strong><span>Progressivo Francesco</span></div>
-            <div class="kpi positive"><strong>${fmt(progress?.overall?.sandu)}</strong><span>Progressivo Sandu</span></div>
+            <div class="kpi francesco"><strong>${fmt(progress?.overall?.francesco)}</strong><span>Progressivo Francesco</span></div>
+            <div class="kpi sandu"><strong>${fmt(progress?.overall?.sandu)}</strong><span>Progressivo Sandu</span></div>
           </div>
         </div>
         ${(progress?.years || []).map(renderPersonalYear).join("")}
@@ -907,8 +975,8 @@
             ${cutoffLabel ? `<span class="date-badge">Dopo ${cutoffLabel}</span>` : "<span>Futuro</span>"}
           </div>
           <div class="personal-grid">
-            <div class="kpi"><strong>${fmt(projection.overall?.francesco)}</strong><span>Francesco futuro</span></div>
-            <div class="kpi"><strong>${fmt(projection.overall?.sandu)}</strong><span>Sandu futuro</span></div>
+            <div class="kpi francesco"><strong>${fmt(projection.overall?.francesco)}</strong><span>Francesco futuro</span></div>
+            <div class="kpi sandu"><strong>${fmt(projection.overall?.sandu)}</strong><span>Sandu futuro</span></div>
           </div>
           <div class="settlement-list">
             <div><span>${esc(projection.note || "Valori stimati su prenotazioni future.")}</span><strong></strong></div>
@@ -1004,10 +1072,11 @@
       const payment = latestPayment("francesco_to_sandu");
       const residual = Number(currentNet || 0);
       const residualLabel = Math.abs(residual) < 0.01 ? "Periodo saldato" : residual > 0 ? "Residuo Francesco -> Sandu" : "Credito Francesco";
+      const cause = String(payment?.note || "").trim() || "Causale non indicata";
       return `
         <div class="section-title"><h2>Stato pagamenti</h2><span class="date-badge">Stop ufficiale ${esc(cutoffLabel || "-")}</span></div>
         <div class="quick-grid">
-          <div class="quick-card">
+          <div class="quick-card sandu">
             <h3>Ultimo pagamento</h3>
             <strong>${payment ? fmt(payment.amount) : fmt(0)}</strong>
             <p>${payment ? `Francesco -> Sandu · ${esc(dateLabel(payment.date) || "data non indicata")}` : "Nessun pagamento registrato"}</p>
@@ -1017,15 +1086,60 @@
             <strong>${esc(paymentPeriod(payment, cutoffLabel) || "-")}</strong>
             <p>${esc(payment?.note || "Periodo dedotto dal pagamento registrato.")}</p>
           </div>
-          <div class="quick-card ${residual >= 0 ? "positive" : "negative"}">
+          <div class="quick-card ${residual >= 0 ? "sandu" : "francesco"}">
             <h3>Saldo dopo pagamento</h3>
             <strong>${fmt(Math.abs(residual))}</strong>
             <p>${esc(residualLabel)}</p>
           </div>
           <div class="quick-card">
-            <h3>File</h3>
-            <strong>${esc(state?.filename || "-")}</strong>
-            <p>${esc(uploadedLabel(state?.uploadedAt))}</p>
+            <h3>Causale pagamento</h3>
+            <strong class="text-value">${esc(cause)}</strong>
+            <p>${payment ? "Nota ultimo pagamento registrato" : "Da compilare nella tabella pagamenti"}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderPaymentHistory() {
+      const payments = [...(state?.settlement?.payments || [])].sort((a, b) => {
+        const dateA = parseDate(a.date)?.getTime() || 0;
+        const dateB = parseDate(b.date)?.getTime() || 0;
+        if (dateA !== dateB) return dateB - dateA;
+        return Number(b.row || 0) - Number(a.row || 0);
+      });
+      const totalFrancesco = payments.filter((payment) => payment.side === "francesco_to_sandu").reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+      const totalSandu = payments.filter((payment) => payment.side === "sandu_to_francesco").reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+      if (!payments.length) {
+        return `
+          <div class="panel">
+            <div class="panel-head"><h2>Storico pagamenti</h2><span>Nessun pagamento registrato</span></div>
+            <div class="empty">Quando inserisci pagamenti nel file Excel li vedrai qui.</div>
+          </div>
+        `;
+      }
+      return `
+        <div class="panel">
+          <div class="panel-head"><h2>Storico pagamenti</h2><span>Francesco -> Sandu ${fmt(totalFrancesco)} · Sandu -> Francesco ${fmt(totalSandu)}</span></div>
+          <div class="payment-list">
+            ${payments.map((payment) => {
+              const isFrancesco = payment.side === "francesco_to_sandu";
+              return `
+                <div class="payment-card ${isFrancesco ? "sandu" : "francesco"}">
+                  <div>
+                    <span>Data</span>
+                    <strong>${esc(dateLabel(payment.date) || "-")}</strong>
+                  </div>
+                  <div>
+                    <span>${isFrancesco ? "Francesco -> Sandu" : "Sandu -> Francesco"}</span>
+                    <p>${esc(payment.note || payment.label || "Causale non indicata")}</p>
+                  </div>
+                  <div>
+                    <span>Importo</span>
+                    <strong>${fmt(payment.amount)}</strong>
+                  </div>
+                </div>
+              `;
+            }).join("")}
           </div>
         </div>
       `;
@@ -1044,8 +1158,8 @@
           <p>${net >= 0 ? "Francesco deve pagare Sandu" : "Sandu deve pagare Francesco"}</p>
         </div>
         <div class="settlement">
-          <div class="kpi positive"><strong>${fmt(forecast.settlement.overall.francescoToSandu)}</strong><span>Francesco -> Sandu previsto</span></div>
-          <div class="kpi negative"><strong>${fmt(forecast.settlement.overall.sanduToFrancesco)}</strong><span>Sandu -> Francesco previsto</span></div>
+          <div class="kpi sandu"><strong>${fmt(forecast.settlement.overall.francescoToSandu)}</strong><span>Francesco -> Sandu previsto</span></div>
+          <div class="kpi francesco"><strong>${fmt(forecast.settlement.overall.sanduToFrancesco)}</strong><span>Sandu -> Francesco previsto</span></div>
         </div>
       `;
     }
@@ -1250,8 +1364,8 @@
             </label>
           </div>
           <div class="settlement-grid">
-            <div class="kpi positive"><strong>${fmt(forecast.personal.overall.francesco)}</strong><span>Francesco previsto</span></div>
-            <div class="kpi positive"><strong>${fmt(forecast.personal.overall.sandu)}</strong><span>Sandu previsto</span></div>
+            <div class="kpi francesco"><strong>${fmt(forecast.personal.overall.francesco)}</strong><span>Francesco previsto</span></div>
+            <div class="kpi sandu"><strong>${fmt(forecast.personal.overall.sandu)}</strong><span>Sandu previsto</span></div>
           </div>
           <div class="settlement-grid">
             <div class="kpi"><strong>${fmt(forecast.futureSanduBookings)}</strong><span>Quote future Sandu da prenotazioni</span></div>
@@ -1261,8 +1375,8 @@
             <div><span>Le quote future Sandu mostrano solo le prenotazioni dopo lo stop ufficiale; il saldo netto previsto compensa anche dare/avere e pagamenti gia presenti nel file.</span><strong></strong></div>
           </div>
           <div class="settlement">
-            <div class="kpi positive"><strong>${fmt(forecast.settlement.overall.francescoToSandu)}</strong><span>Francesco deve a Sandu previsto</span></div>
-            <div class="kpi negative"><strong>${fmt(forecast.settlement.overall.sanduToFrancesco)}</strong><span>Sandu deve a Francesco previsto</span></div>
+            <div class="kpi sandu"><strong>${fmt(forecast.settlement.overall.francescoToSandu)}</strong><span>Francesco deve a Sandu previsto</span></div>
+            <div class="kpi francesco"><strong>${fmt(forecast.settlement.overall.sanduToFrancesco)}</strong><span>Sandu deve a Francesco previsto</span></div>
           </div>
           <div class="delta-box ${net >= 0 ? "positive" : "negative"}">
             <span>Saldo netto previsto <span class="date-badge">Fino al ${esc(label)}</span></span>
@@ -1285,8 +1399,8 @@
             <span>${delta >= 0 ? "Francesco paga Sandu" : "Sandu paga Francesco"} ${fmt(Math.abs(delta))}</span>
           </div>
           <div class="settlement-grid">
-            <div class="kpi positive"><strong>${fmt(year.francescoToSanduTotal)}</strong><span>Francesco deve a Sandu</span></div>
-            <div class="kpi negative"><strong>${fmt(year.sanduToFrancescoTotal)}</strong><span>Sandu deve a Francesco</span></div>
+            <div class="kpi sandu"><strong>${fmt(year.francescoToSanduTotal)}</strong><span>Francesco deve a Sandu</span></div>
+            <div class="kpi francesco"><strong>${fmt(year.sanduToFrancescoTotal)}</strong><span>Sandu deve a Francesco</span></div>
           </div>
           <div class="settlement-list">
             <h2>Francesco -> Sandu</h2>
@@ -1309,6 +1423,7 @@
       const cutoffLabel = s.cutoffDate ? new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${s.cutoffDate}T00:00:00`)) : "";
       $("settlement").innerHTML = !state ? `<div class="panel"><div class="empty">Carica il file Excel per calcolare il rendiconto.</div></div>` : `
         ${renderPaymentStatus(cutoffLabel, net)}
+        ${renderPaymentHistory()}
         ${renderNextStopSummary()}
         ${renderMovementPanels()}
         <div class="section-title"><h2>Saldo ufficiale</h2><span class="date-badge">Stop ${esc(cutoffLabel)}</span></div>
@@ -1318,8 +1433,8 @@
           <p>${net >= 0 ? "Francesco deve pagare Sandu" : "Sandu deve pagare Francesco"}</p>
         </div>
         <div class="settlement">
-          <div class="kpi positive"><strong>${fmt(overall.francescoToSandu)}</strong><span>Totale Francesco deve a Sandu</span></div>
-          <div class="kpi negative"><strong>${fmt(overall.sanduToFrancesco)}</strong><span>Totale Sandu deve a Francesco</span></div>
+          <div class="kpi sandu"><strong>${fmt(overall.francescoToSandu)}</strong><span>Totale Francesco deve a Sandu</span></div>
+          <div class="kpi francesco"><strong>${fmt(overall.sanduToFrancesco)}</strong><span>Totale Sandu deve a Francesco</span></div>
         </div>
         <div class="section-title"><h2>Progressivi e previsione</h2><span>Dettaglio sintetico</span></div>
         ${renderPersonalProgress(s.personalProgress || {}, cutoffLabel)}
